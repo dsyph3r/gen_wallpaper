@@ -13,6 +13,7 @@ Packages needed, these are the packages names on ubuntu different distros may di
  * librmagick-ruby
 
 Fedora specific:
+
  * wordnet-base is not required
  * "wbritish" package is replaced with "word" package
  
