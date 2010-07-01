@@ -2,6 +2,12 @@ require 'rubygems'
 require 'RMagick'
 require "wordnet"
 
+require 'rss/1.0'
+require 'rss/2.0'
+require 'open-uri'
+require 'cgi'
+
+
 # INSTALL:
 #   rwordnet
 
@@ -9,25 +15,25 @@ module GenWallpaper
 	module DailyWord
 		class Star
 		    def initialize(w, h)
-			@angle_inc = 10
-			@width     = w
-			@height    = h
-
-			# Max distance form the center.
-			@radius = Math.sqrt(@width*@width + @height*@height)
-
-			# Stripe colors
-			@color_a = "#FF4500"
-			@color_b = "#FFA500"
-
-			@color_a = "#4A8AB9"
-			@color_b = "#869EAF"
+          @angle_inc = 10
+          @width     = w
+          @height    = h
+    
+          # Max distance form the center.
+          @radius = Math.sqrt(@width*@width + @height*@height)
+    
+          # Stripe colors
+          @color_a = "#FF4500"
+          @color_b = "#FFA500"
+    
+          @color_a = "#4A8AB9"
+          @color_b = "#869EAF"
 		    end
 
 		    def draw(img)
-			cen_x = @width/2.0
-			cen_y = @height/2.0
-			5.step(355, @angle_inc) do |n|
+          cen_x = @width/2.0
+          cen_y = @height/2.0
+          5.step(355, @angle_inc) do |n|
 			    a1=(n*Math::PI)/180.0
 			    x1 = (Math.cos(a1) * @radius) + cen_x
 			    y1 = (Math.sin(a1) * @radius) + cen_y
@@ -45,7 +51,7 @@ module GenWallpaper
 
 			    # Output
 			    line.draw(img)
-			end
+        end
 
 			return img
 		    end
@@ -57,107 +63,125 @@ module GenWallpaper
 	module DailyWord
 		class Definition
 		    def initialize(w, h)
-			@color_a = "white"
-			@color_b = "black"
-			@color_shadow = "#000000"
+          @color_a = "white"
+          @color_b = "black"
+          @color_shadow = "#000000"
+    
+          @width  = w
+          @height = h
+        end
 
-			@width  = w
-			@height = h
+		    def get_definition_wordnet()
+          definition = nil
+          while(!definition) do
+            # Soooo inefficient
+            line = IO.readlines('/usr/share/dict/words')
+            c = rand*line.length.to_i
+            word = line[c-1].gsub(/\'s$/, '')
+  
+            word.chomp!
+            lemmas = WordNet::WordNetDB.find(word)
+  
+            # Print out each lemma with a list of possible meanings.
+            lemmas.each do |lemma|
+              lemma.synsets.each_with_index do |synset,i|
+                definition = synset.gloss.capitalize
+                break
+              end
+              break if  definition
+            end
+          end
+          return {:word => word, :definition => definition}
 		    end
 
-		    def get_definition()
-			definition = nil
-			while(!definition) do
-				# Soooo inefficient
-				line = IO.readlines('/usr/share/dict/words')
-				c = rand*line.length.to_i
-				word = line[c-1].gsub(/\'s$/, '')
+        # Grab the current word of the day from urban dictionary
+        def get_definition_urban_dictionary()
+          source  = "http://feeds.urbandictionary.com/UrbanWordOfTheDay"
+          content = ""
+          open(source) do |s| content = s.read end
+          rss = RSS::Parser.parse(content, false)
+          
+          # Grab the title and description, striping out html tags
+          word        = rss.items[0].title;
+          definition  = CGI.unescapeHTML(rss.items[0].description).gsub(/<\/?[^>]*>/, "")
 
-				word.chomp!
-				lemmas = WordNet::WordNetDB.find(word)
-
-				# Print out each lemma with a list of possible meanings.
-				lemmas.each do |lemma|
-					lemma.synsets.each_with_index do |synset,i|
-						definition = synset.gloss.capitalize
-						break
-					end
-					break if  definition
-				end
-			end
-			return {:word => word, :definition => definition}
-		    end
-
+          return {:word => word, :definition => definition}
+          
+        end
+        
 		    def draw_word(orig_img)
-			img = Magick::ImageList.new
-			img.new_image(@width, @height) {
-			    self.background_color = "#0000FF00"
-			}
+          img = Magick::ImageList.new
+          img.new_image(@width, @height) {
+              self.background_color = "#0000FF00"
+          }
 
-			color = @color_b
-			25.step(0,-5) do |n|
-			    text = Magick::Draw.new
-			    text.annotate(img, 0, 0, -10, -10, @word) do
-				self.font = "resources/fonts/Candice.ttf"
-				self.gravity = Magick::CenterGravity
-				self.pointsize = 72
-				self.fill = "white"
-				self.stroke_width = n
-				self.stroke = color
-			    end
-			    color = (color == @color_a ? @color_b : @color_a)
-			end
+          color = @color_b
+          25.step(0,-5) do |n|
+            text = Magick::Draw.new
+            text.annotate(img, 0, 0, -10, -10, @word) do
+              self.font = "resources/fonts/Candice.ttf"
+              self.gravity = Magick::CenterGravity
+              self.pointsize = 72
+              self.fill = "white"
+              self.stroke_width = n
+              self.stroke = color
+            end
+            color = (color == @color_a ? @color_b : @color_a)
+          end
 
-			# Add the shadow.
-			shadow = img.shadow(1,0,5.0)
-			shadow = shadow.colorize(1, 1, 1, "black")
-			img = shadow.composite(img, 6, 6, Magick::OverCompositeOp)
-			return orig_img.composite(img, 7, 7, Magick::OverCompositeOp)
-		    end
+          # Add the shadow.
+          shadow = img.shadow(1,0,5.0)
+          shadow = shadow.colorize(1, 1, 1, "black")
+          img = shadow.composite(img, 6, 6, Magick::OverCompositeOp)
+          return orig_img.composite(img, 7, 7, Magick::OverCompositeOp)
+        end
 
 		    def draw_definition(img_orig)
-			img = Magick::ImageList.new
-			img.new_image(@width, @height) {
-			    # Image with a transparant background.
-			    self.background_color = "#0000FF00"
-			}
+          img = Magick::ImageList.new
+          img.new_image(@width, @height) {
+              # Image with a transparant background.
+              self.background_color = "#0000FF00"
+          }
 
+          defin_new = ""
+          # Split def
+          num_lines = 0;
+          cnt = 1
+          @definition.split(/\s+/).each { |n|
+              cnt += n.length
+              if cnt > 50 then
+            cnt = n.length
+            defin_new << "\n"
+            num_lines += 1
+              end
+              defin_new << n << " "
+          }
 
-			defin_new = ""
-			# Split def
-			num_lines = 0;
-			cnt = 1
-			@definition.split(/\s+/).each { |n|
-			    cnt += n.length
-			    if cnt > 50 then
-				cnt = n.length
-				defin_new << "\n"
-				num_lines += 1
-			    end
-			    defin_new << n << " "
-			}
-
-			text = Magick::Draw.new
-			text.annotate(img, 0,0,0,10+(@height/2)+(80/2), defin_new.to_s) do
-			    self.font = "resources/fonts/Candice.ttf"
-			    self.gravity = Magick::NorthGravity
-			    self.pointsize = 30
-			    self.fill = "white"
-			    self.stroke_width = 1
-			    self.stroke = "black"
-			end
-
-			img_orig = img_orig.composite(img, 7, 7, Magick::OverCompositeOp)
-			return img_orig
+          text = Magick::Draw.new
+          text.annotate(img, 0,0,0,10+(@height/2)+(80/2), defin_new.to_s) do
+            self.font = "resources/fonts/Candice.ttf"
+            self.gravity = Magick::NorthGravity
+            self.pointsize = 30
+            self.fill = "white"
+            self.stroke_width = 1
+            self.stroke = "black"
+          end
+    
+          img_orig = img_orig.composite(img, 7, 7, Magick::OverCompositeOp)
+          return img_orig
 		    end
 
-		    def draw(img)
-			word_hash = get_definition
-			@word       = word_hash[:word].capitalize
-			@definition = word_hash[:definition]
-
-			img = draw_word(img)
-			return draw_definition(img)
+		    def draw(img, definition)
+          if (definition == "wordnet") then
+            word_hash = get_definition_wordnet
+          else
+            word_hash = get_definition_urban_dictionary
+          end
+          @word       = word_hash[:word].capitalize
+          @definition = word_hash[:definition]
+    
+          img = draw_word(img)
+          return draw_definition(img)
 		    end
 		end
 	end
@@ -170,6 +194,11 @@ end
 # THE APP
 #
 
+
+definition = "wordnet"
+if (ARGV[0]) then
+  definition = ARGV[0]
+end
 
 #
 # Initalize and run the script.
@@ -189,7 +218,7 @@ img = s.draw(img)
 
 # Print random word + definition.
 d=GenWallpaper::DailyWord::Definition.new(screen_width, screen_height)
-img = d.draw(img)
+img = d.draw(img, definition)
 
 # Write the image!
 img.write("daily_word.png")
