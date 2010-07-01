@@ -1,6 +1,7 @@
 # README
 
 Generates a desktop background. 2 methods are currently available:
+
  * Random word + definition (using wordnet).
  * Urban Dictionary word of the day
 
